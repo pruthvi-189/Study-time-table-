@@ -14,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TimeBlock, DayPreference } from "./TimetableGenerator";
+import { TimeBlock, DayPreference, ActivityType } from "./TimetableGenerator";
 import { Button } from "@/components/ui/button";
+import { AlarmClock, Book, School, Bed, Clock, Dumbbell, Coffee, Music } from "lucide-react";
 
 interface TimetableProps {
   timetable: TimeBlock[];
@@ -29,6 +30,18 @@ const formatTime = (time: string) => {
   if (!time) return "";
   const [hours, minutes] = time.split(":");
   return `${hours}:${minutes}`;
+};
+
+// Activity type icons
+const activityIcons: Record<ActivityType | "break", React.ReactNode> = {
+  study: <Book size={16} />,
+  sleep: <Bed size={16} />,
+  freshup: <Coffee size={16} />,
+  exercise: <Dumbbell size={16} />,
+  school: <School size={16} />,
+  extracurricular: <Music size={16} />,
+  bedtime: <AlarmClock size={16} />,
+  break: <Clock size={16} />
 };
 
 const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPreferences }) => {
@@ -45,7 +58,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
     : timetable;
 
   const getEarliestStartTime = () => {
-    if (filteredTimetable.length === 0) return "09:00";
+    if (filteredTimetable.length === 0) return "06:00";
     return filteredTimetable.reduce(
       (earliest, block) => (block.startTime < earliest ? block.startTime : earliest),
       "23:59"
@@ -53,7 +66,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
   };
 
   const getLatestEndTime = () => {
-    if (filteredTimetable.length === 0) return "17:00";
+    if (filteredTimetable.length === 0) return "22:00";
     return filteredTimetable.reduce(
       (latest, block) => (block.endTime > latest ? block.endTime : latest),
       "00:00"
@@ -71,16 +84,37 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
     const slots = [];
     for (let hour = startHour; hour <= endHour; hour++) {
       slots.push(`${hour.toString().padStart(2, "0")}:00`);
+      if (hour < endHour) {
+        slots.push(`${hour.toString().padStart(2, "0")}:30`);
+      }
     }
     return slots;
   };
 
   const timeSlots = getTimeSlots();
 
+  const getBlockLabel = (block: TimeBlock) => {
+    if (block.type === "break") return "Break";
+    if (block.subject) return block.subject.name;
+    if (block.activity) return block.activity.name;
+    return "";
+  };
+
+  const getBlockColor = (block: TimeBlock) => {
+    if (block.type === "break") return "#f0f0f0";
+    if (block.subject) return block.subject.color;
+    if (block.activity) return block.activity.color;
+    return "#cccccc";
+  };
+
+  const getBlockIcon = (block: TimeBlock) => {
+    return activityIcons[block.type] || <Clock size={16} />;
+  };
+
   const renderWeekView = () => {
     return (
       <div className="overflow-x-auto">
-        <div className="min-w-[700px]">
+        <div className="min-w-[800px]">
           <div className="grid grid-cols-8 gap-1 font-medium text-center py-2">
             <div className="bg-gray-100 rounded p-2">Time</div>
             {activeDays.map(day => (
@@ -100,25 +134,48 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
               </div>
               
               {activeDays.map(day => {
-                // Find blocks that start at this time slot for this day
+                // Find blocks that include this time slot
                 const blocksForThisSlot = timetable.filter(
-                  block => block.startTime === timeSlot && block.day === day
+                  block => {
+                    return block.day === day && 
+                           block.startTime <= timeSlot && 
+                           block.endTime > timeSlot;
+                  }
                 );
                 
                 return (
                   <div key={`${day}-${timeSlot}`} className="relative p-1 min-h-[60px]">
-                    {blocksForThisSlot.map(block => (
-                      <div
-                        key={block.id}
-                        className="rounded p-2 h-full flex flex-col"
-                        style={{ backgroundColor: block.subject.color }}
-                      >
-                        <div className="text-sm font-medium">{block.subject.name}</div>
-                        <div className="text-xs opacity-80">
-                          {formatTime(block.startTime)} - {formatTime(block.endTime)}
+                    {blocksForThisSlot.map(block => {
+                      // Only show block content at its starting time slot
+                      const isStartSlot = block.startTime === timeSlot;
+                      
+                      // Calculate how many time slots this block spans
+                      const startSlotIndex = timeSlots.indexOf(block.startTime);
+                      const endSlotIndex = timeSlots.findIndex(t => t >= block.endTime);
+                      const slotSpan = endSlotIndex - startSlotIndex || 1;
+                      
+                      if (!isStartSlot) return null;
+                      
+                      return (
+                        <div
+                          key={block.id}
+                          className="rounded p-2 h-full flex flex-col absolute top-0 left-0 right-0 m-1"
+                          style={{ 
+                            backgroundColor: getBlockColor(block),
+                            height: `${slotSpan * 60}px`,
+                            zIndex: 1
+                          }}
+                        >
+                          <div className="flex items-center gap-1 text-sm font-medium">
+                            {getBlockIcon(block)}
+                            <span>{getBlockLabel(block)}</span>
+                          </div>
+                          <div className="text-xs opacity-80">
+                            {formatTime(block.startTime)} - {formatTime(block.endTime)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -153,40 +210,23 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
 
         {filteredTimetable.length === 0 ? (
           <div className="text-center py-10 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No study blocks scheduled for {selectedDay}.</p>
+            <p className="text-gray-500">No activities scheduled for {selectedDay}.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {timeSlots.map(timeSlot => {
-              const blocksForThisSlot = filteredTimetable.filter(
-                block => block.startTime === timeSlot
-              );
-              
-              if (blocksForThisSlot.length === 0) return null;
-              
-              return (
-                <div key={timeSlot} className="border rounded-lg overflow-hidden">
-                  <div className="bg-gray-100 p-3">
-                    <div className="font-medium">{formatTime(timeSlot)}</div>
+            {filteredTimetable.map(block => (
+              <div key={block.id} className="border rounded-lg overflow-hidden">
+                <div className="p-3" style={{ backgroundColor: getBlockColor(block) }}>
+                  <div className="flex items-center gap-2 font-medium">
+                    {getBlockIcon(block)}
+                    <div>{getBlockLabel(block)}</div>
                   </div>
-                  
-                  <div className="p-2 space-y-2">
-                    {blocksForThisSlot.map(block => (
-                      <div
-                        key={block.id}
-                        className="rounded-md p-3"
-                        style={{ backgroundColor: block.subject.color }}
-                      >
-                        <div className="text-md font-medium">{block.subject.name}</div>
-                        <div className="text-sm opacity-80">
-                          {formatTime(block.startTime)} - {formatTime(block.endTime)}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-sm opacity-80 mt-1">
+                    {formatTime(block.startTime)} - {formatTime(block.endTime)}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -196,7 +236,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-4 justify-between items-center">
-        <h2 className="text-2xl font-semibold text-gray-800">Study Timetable</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">Daily Schedule</h2>
         
         <div className="flex gap-2">
           <Button
@@ -219,7 +259,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
       {timetable.length === 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-lg">
           <p className="text-gray-500">
-            No timetable generated yet. Click "Generate Timetable" to create your study schedule.
+            No timetable generated yet. Click "Generate Timetable" to create your daily schedule.
           </p>
         </div>
       ) : (

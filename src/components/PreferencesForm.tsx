@@ -51,7 +51,7 @@ const PreferencesForm: React.FC<PreferencesFormProps> = ({
 
   const isDayEnabled = (day: string) => {
     const dayPref = dayPreferences.find(dp => dp.day === day);
-    return dayPref && dayPref.startTime && dayPref.endTime;
+    return !!(dayPref && dayPref.startTime && dayPref.endTime);
   };
 
   const toggleDayEnabled = (day: string, enabled: boolean) => {

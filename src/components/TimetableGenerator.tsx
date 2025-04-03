@@ -18,12 +18,34 @@ import { useLocalStorage } from "../hooks/use-local-storage";
 import SubjectForm from "./SubjectForm";
 import Timetable from "./Timetable";
 import PreferencesForm from "./PreferencesForm";
+import ActivityForm from "./ActivityForm";
+
+export type ActivityType = 
+  | "study"
+  | "sleep"
+  | "freshup"
+  | "exercise"
+  | "school"
+  | "extracurricular"
+  | "bedtime";
 
 export type Subject = {
   id: string;
   name: string;
   color: string;
   hoursPerWeek: number;
+};
+
+export type Activity = {
+  id: string;
+  name: string;
+  type: ActivityType;
+  color: string;
+  hoursPerDay: number;
+  priority: number; // Higher numbers = higher priority
+  fixedTime?: boolean;
+  startTime?: string;
+  endTime?: string;
 };
 
 export type DayPreference = {
@@ -35,71 +57,137 @@ export type DayPreference = {
 
 export type TimeBlock = {
   id: string;
-  subject: Subject;
+  activity?: Activity;
+  subject?: Subject;
   day: string;
   startTime: string;
   endTime: string;
+  type: ActivityType | "break";
 };
+
+const DEFAULT_ACTIVITIES: Activity[] = [
+  {
+    id: "sleep",
+    name: "Sleep",
+    type: "sleep",
+    color: "#9575cd",
+    hoursPerDay: 8,
+    priority: 10,
+    fixedTime: true,
+    startTime: "22:00",
+    endTime: "06:00"
+  },
+  {
+    id: "freshup",
+    name: "Morning Routine",
+    type: "freshup",
+    color: "#64b5f6",
+    hoursPerDay: 1,
+    priority: 9,
+    fixedTime: true,
+    startTime: "06:00",
+    endTime: "07:00"
+  },
+  {
+    id: "exercise",
+    name: "Exercise",
+    type: "exercise",
+    color: "#81c784",
+    hoursPerDay: 1,
+    priority: 7, 
+    fixedTime: false,
+  },
+  {
+    id: "school",
+    name: "School",
+    type: "school",
+    color: "#ffb74d",
+    hoursPerDay: 7,
+    priority: 10,
+    fixedTime: true,
+    startTime: "08:00",
+    endTime: "15:00"
+  },
+  {
+    id: "extracurricular",
+    name: "Extra-curricular",
+    type: "extracurricular",
+    color: "#ff8a65",
+    hoursPerDay: 2,
+    priority: 5,
+    fixedTime: false,
+  },
+  {
+    id: "bedtime",
+    name: "Evening Routine",
+    type: "bedtime",
+    color: "#7986cb",
+    hoursPerDay: 1,
+    priority: 8,
+    fixedTime: true,
+    startTime: "21:00",
+    endTime: "22:00"
+  }
+];
 
 const TimetableGenerator = () => {
   const [subjects, setSubjects] = useLocalStorage<Subject[]>("subjects", []);
+  const [activities, setActivities] = useLocalStorage<Activity[]>(
+    "activities", 
+    DEFAULT_ACTIVITIES
+  );
   const [dayPreferences, setDayPreferences] = useLocalStorage<DayPreference[]>(
     "dayPreferences",
     [
       {
         day: "Monday",
-        startTime: "09:00",
-        endTime: "17:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Tuesday",
-        startTime: "09:00",
-        endTime: "17:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Wednesday",
-        startTime: "09:00",
-        endTime: "17:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Thursday",
-        startTime: "09:00",
-        endTime: "17:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Friday",
-        startTime: "09:00",
-        endTime: "17:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Saturday",
-        startTime: "10:00",
-        endTime: "15:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
       {
         day: "Sunday",
-        startTime: "10:00",
-        endTime: "15:00",
+        startTime: "06:00",
+        endTime: "22:00",
         breakTime: "12:00-13:00",
       },
     ]
   );
 
   const [timetable, setTimetable] = useLocalStorage<TimeBlock[]>("timetable", []);
-  const [activeTab, setActiveTab] = useState("subjects");
+  const [activeTab, setActiveTab] = useState("activities");
 
   const generateTimetable = () => {
-    if (subjects.length === 0) {
-      toast.error("Please add at least one subject before generating the timetable");
-      return;
-    }
-
     // Clear previous timetable
     const newTimetable: TimeBlock[] = [];
     
@@ -118,107 +206,247 @@ const TimetableGenerator = () => {
       return;
     }
 
-    // Calculate total hours needed and available
-    const totalHoursNeeded = subjects.reduce((sum, s) => sum + s.hoursPerWeek, 0);
-    let totalHoursAvailable = 0;
-    
-    availableDays.forEach(dp => {
-      const startHour = parseInt(dp.startTime.split(":")[0]);
-      const startMinutes = parseInt(dp.startTime.split(":")[1]);
-      const endHour = parseInt(dp.endTime.split(":")[0]);
-      const endMinutes = parseInt(dp.endTime.split(":")[1]);
-      
-      let breakDuration = 0;
-      if (dp.breakTime) {
-        const [breakStart, breakEnd] = dp.breakTime.split("-");
-        if (breakStart && breakEnd) {
-          const breakStartHour = parseInt(breakStart.split(":")[0]);
-          const breakStartMinutes = parseInt(breakStart.split(":")[1]);
-          const breakEndHour = parseInt(breakEnd.split(":")[0]);
-          const breakEndMinutes = parseInt(breakEnd.split(":")[1]);
-          
-          breakDuration = 
-            (breakEndHour - breakStartHour) + 
-            (breakEndMinutes - breakStartMinutes) / 60;
-        }
-      }
-      
-      const dayHours = 
-        (endHour - startHour) + 
-        (endMinutes - startMinutes) / 60 - 
-        breakDuration;
-      
-      totalHoursAvailable += dayHours;
-    });
-
-    if (totalHoursAvailable < totalHoursNeeded) {
-      toast.warning(
-        `Your subjects require ${totalHoursNeeded} hours, but you only have ${totalHoursAvailable.toFixed(1)} available hours in your schedule.`
-      );
-    }
-
-    // Distribute subjects across available days
-    let subjectIndex = 0;
-    let remainingHours: { [key: string]: number } = {};
-    subjects.forEach(s => remainingHours[s.id] = s.hoursPerWeek);
-    
-    for (const dayPref of availableDays) {
+    // First schedule fixed activities for each day
+    availableDays.forEach(dayPref => {
       const day = dayPref.day;
-      let currentTime = dayPref.startTime;
-      let endTime = dayPref.endTime;
+      const dayStartTime = dayPref.startTime;
+      const dayEndTime = dayPref.endTime;
       
-      // Handle break time if specified
-      const breakPeriods: { start: string; end: string }[] = [];
+      // Add fixed activities first
+      const fixedActivities = activities.filter(activity => activity.fixedTime && activity.startTime && activity.endTime);
+      
+      fixedActivities.forEach(activity => {
+        // Check if activity falls within day hours
+        if (activity.startTime! >= dayStartTime && activity.endTime! <= dayEndTime) {
+          newTimetable.push({
+            id: `${day}-${activity.id}`,
+            activity: activity,
+            day: day,
+            startTime: activity.startTime!,
+            endTime: activity.endTime!,
+            type: activity.type
+          });
+        }
+      });
+      
+      // Add breaks
       if (dayPref.breakTime && dayPref.breakTime.includes('-')) {
         const [breakStart, breakEnd] = dayPref.breakTime.split('-');
         if (breakStart && breakEnd) {
-          breakPeriods.push({ start: breakStart, end: breakEnd });
+          newTimetable.push({
+            id: `${day}-break`,
+            day: day,
+            startTime: breakStart,
+            endTime: breakEnd,
+            type: "break"
+          });
         }
       }
-
-      while (currentTime < endTime) {
-        // Check if currentTime is in a break period
-        const isBreakTime = breakPeriods.some(
-          period => currentTime >= period.start && currentTime < period.end
-        );
-
-        if (isBreakTime) {
-          // Skip to the end of the break
-          const activePeriod = breakPeriods.find(
-            period => currentTime >= period.start && currentTime < period.end
-          );
-          currentTime = activePeriod ? activePeriod.end : currentTime;
-          continue;
+    });
+    
+    // Create timeblocks array - 30 min intervals for the whole day
+    const timeBlocks = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let min = 0; min < 60; min += 30) {
+        const time = `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+        timeBlocks.push(time);
+      }
+    }
+    
+    // For each day, identify free time slots
+    availableDays.forEach(dayPref => {
+      const day = dayPref.day;
+      const dayStartTime = dayPref.startTime;
+      const dayEndTime = dayPref.endTime;
+      
+      let freeTimeSlots: {start: string, end: string}[] = [];
+      
+      // Initialize with full day
+      freeTimeSlots.push({start: dayStartTime, end: dayEndTime});
+      
+      // Remove occupied time slots
+      const dayEvents = newTimetable.filter(block => block.day === day);
+      dayEvents.forEach(event => {
+        freeTimeSlots = freeTimeSlots.flatMap(slot => {
+          // No overlap
+          if (event.endTime <= slot.start || event.startTime >= slot.end) {
+            return [slot];
+          }
+          
+          // Event completely covers slot
+          if (event.startTime <= slot.start && event.endTime >= slot.end) {
+            return [];
+          }
+          
+          // Event in middle of slot
+          if (event.startTime > slot.start && event.endTime < slot.end) {
+            return [
+              {start: slot.start, end: event.startTime},
+              {start: event.endTime, end: slot.end}
+            ];
+          }
+          
+          // Event overlaps start of slot
+          if (event.startTime <= slot.start && event.endTime < slot.end) {
+            return [{start: event.endTime, end: slot.end}];
+          }
+          
+          // Event overlaps end of slot
+          if (event.startTime > slot.start && event.endTime >= slot.end) {
+            return [{start: slot.start, end: event.startTime}];
+          }
+          
+          return [slot];
+        });
+      });
+      
+      // Calculate total free time available
+      const totalFreeMinutes = freeTimeSlots.reduce((total, slot) => {
+        const startParts = slot.start.split(':').map(Number);
+        const endParts = slot.end.split(':').map(Number);
+        const startMinutes = startParts[0] * 60 + startParts[1];
+        const endMinutes = endParts[0] * 60 + endParts[1];
+        return total + (endMinutes - startMinutes);
+      }, 0);
+      
+      // Now distribute remaining activities (non-fixed)
+      const flexibleActivities = activities
+        .filter(activity => !activity.fixedTime)
+        .sort((a, b) => b.priority - a.priority);
+      
+      // Calculate study time needs
+      let studyTimeNeededMinutes = subjects.reduce((sum, s) => sum + (s.hoursPerWeek * 60 / 7), 0);
+      
+      // Distribute flexible activities
+      const flexibleNeedsMinutes = flexibleActivities.reduce((sum, a) => sum + a.hoursPerDay * 60, 0);
+      
+      if (flexibleNeedsMinutes + studyTimeNeededMinutes > totalFreeMinutes) {
+        toast.warning(`Not enough free time on ${day} to fit all activities and study.`);
+      }
+      
+      let remainingFreeSlots = [...freeTimeSlots];
+      
+      // Distribute activities in priority order
+      flexibleActivities.forEach(activity => {
+        let minutesNeeded = activity.hoursPerDay * 60;
+        let minutesScheduled = 0;
+        
+        // Try to fit this activity into free slots
+        while (minutesScheduled < minutesNeeded && remainingFreeSlots.length > 0) {
+          // Find best slot - pick the earliest one with sufficient duration
+          const bestSlotIndex = remainingFreeSlots.findIndex(slot => {
+            const startParts = slot.start.split(':').map(Number);
+            const endParts = slot.end.split(':').map(Number);
+            const startMinutes = startParts[0] * 60 + startParts[1];
+            const endMinutes = endParts[0] * 60 + endParts[1];
+            return (endMinutes - startMinutes) >= 30; // At least 30 min block
+          });
+          
+          if (bestSlotIndex === -1) break;
+          
+          const slot = remainingFreeSlots[bestSlotIndex];
+          
+          // How much time to allocate
+          const startParts = slot.start.split(':').map(Number);
+          const endParts = slot.end.split(':').map(Number);
+          const startMinutes = startParts[0] * 60 + startParts[1];
+          const endMinutes = endParts[0] * 60 + endParts[1];
+          const slotDuration = endMinutes - startMinutes;
+          
+          // Take at most 60 minutes or what's needed
+          const blockSize = Math.min(60, slotDuration, minutesNeeded - minutesScheduled);
+          
+          // Create block
+          const blockEndMinutes = startMinutes + blockSize;
+          const blockEndHour = Math.floor(blockEndMinutes / 60);
+          const blockEndMin = blockEndMinutes % 60;
+          const blockEnd = `${blockEndHour.toString().padStart(2, '0')}:${blockEndMin.toString().padStart(2, '0')}`;
+          
+          newTimetable.push({
+            id: `${day}-${activity.id}-${slot.start}`,
+            activity: activity,
+            day: day,
+            startTime: slot.start,
+            endTime: blockEnd,
+            type: activity.type
+          });
+          
+          minutesScheduled += blockSize;
+          
+          // Update remaining time in this slot
+          if (blockSize === slotDuration) {
+            // Remove this slot
+            remainingFreeSlots.splice(bestSlotIndex, 1);
+          } else {
+            // Shrink this slot
+            remainingFreeSlots[bestSlotIndex].start = blockEnd;
+          }
         }
-
-        // Find next subject that needs time
+      });
+      
+      // Now distribute study subjects across available slots
+      let subjectIndex = 0;
+      let subjectMinutes: { [key: string]: number } = {};
+      subjects.forEach(s => subjectMinutes[s.id] = Math.floor(s.hoursPerWeek * 60 / 7)); // Per day allocation
+      
+      while (remainingFreeSlots.length > 0 && Object.values(subjectMinutes).some(m => m > 0)) {
+        // Find best slot
+        const bestSlotIndex = remainingFreeSlots.findIndex(slot => {
+          const startParts = slot.start.split(':').map(Number);
+          const endParts = slot.end.split(':').map(Number);
+          const startMinutes = startParts[0] * 60 + startParts[1];
+          const endMinutes = endParts[0] * 60 + endParts[1];
+          return (endMinutes - startMinutes) >= 30; // At least 30 min block
+        });
+        
+        if (bestSlotIndex === -1) break;
+        
+        const slot = remainingFreeSlots[bestSlotIndex];
+        
+        // Find subject with remaining time
         let allocated = false;
         const startSubjectIndex = subjectIndex;
         
         do {
           const subject = subjects[subjectIndex];
-          if (remainingHours[subject.id] > 0) {
-            // Calculate end time (1 hour block)
-            const hourStr = currentTime.split(":")[0].padStart(2, "0");
-            const minuteStr = currentTime.split(":")[1];
-            const nextHour = (parseInt(hourStr) + 1).toString().padStart(2, "0");
-            const blockEndTime = `${nextHour}:${minuteStr}`;
+          if (subjectMinutes[subject.id] > 0) {
+            // How much time to allocate
+            const startParts = slot.start.split(':').map(Number);
+            const endParts = slot.end.split(':').map(Number);
+            const startMinutes = startParts[0] * 60 + startParts[1];
+            const endMinutes = endParts[0] * 60 + endParts[1];
+            const slotDuration = endMinutes - startMinutes;
             
-            if (blockEndTime <= endTime) {
-              newTimetable.push({
-                id: `${day}-${currentTime}-${subject.id}`,
-                subject: subject,
-                day: day,
-                startTime: currentTime,
-                endTime: blockEndTime,
-              });
-              
-              remainingHours[subject.id] -= 1;
-              currentTime = blockEndTime;
-              allocated = true;
+            // Take at most 60 minutes or what's needed
+            const blockSize = Math.min(60, slotDuration, subjectMinutes[subject.id]);
+            
+            // Create block
+            const blockEndMinutes = startMinutes + blockSize;
+            const blockEndHour = Math.floor(blockEndMinutes / 60);
+            const blockEndMin = blockEndMinutes % 60;
+            const blockEnd = `${blockEndHour.toString().padStart(2, '0')}:${blockEndMin.toString().padStart(2, '0')}`;
+            
+            newTimetable.push({
+              id: `${day}-study-${subject.id}-${slot.start}`,
+              subject: subject,
+              day: day,
+              startTime: slot.start,
+              endTime: blockEnd,
+              type: "study"
+            });
+            
+            subjectMinutes[subject.id] -= blockSize;
+            
+            // Update remaining time in this slot
+            if (blockSize === slotDuration) {
+              // Remove this slot
+              remainingFreeSlots.splice(bestSlotIndex, 1);
             } else {
-              break; // End of day reached
+              // Shrink this slot
+              remainingFreeSlots[bestSlotIndex].start = blockEnd;
             }
+            
+            allocated = true;
           }
           
           // Move to next subject
@@ -226,21 +454,21 @@ const TimetableGenerator = () => {
         } while (!allocated && subjectIndex !== startSubjectIndex);
         
         if (!allocated) {
-          // No subjects need more time or time slot doesn't fit
+          // No subjects need more time
           break;
         }
       }
-    }
+    });
 
-    // Calculate how many hours couldn't be allocated
-    const unallocatedHours = Object.values(remainingHours).reduce((sum, h) => sum + h, 0);
-    setTimetable(newTimetable);
+    // Sort timetable by day and time
+    newTimetable.sort((a, b) => {
+      const dayOrder = days.indexOf(a.day) - days.indexOf(b.day);
+      if (dayOrder !== 0) return dayOrder;
+      return a.startTime.localeCompare(b.startTime);
+    });
     
-    if (unallocatedHours > 0) {
-      toast.warning(`Could not allocate ${unallocatedHours} study hours. Consider adding more available time.`);
-    } else {
-      toast.success("Timetable successfully generated!");
-    }
+    setTimetable(newTimetable);
+    toast.success("Full daily schedule generated!");
     
     // Switch to timetable tab
     setActiveTab("timetable");
@@ -261,16 +489,21 @@ const TimetableGenerator = () => {
       <Card className="shadow-lg border-none">
         <CardHeader className="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-t-lg">
           <CardTitle className="text-2xl md:text-3xl font-bold text-center">
-            Study Timetable Generator
+            Daily Schedule Generator
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3 mb-8">
-              <TabsTrigger value="subjects">Subjects</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 mb-8">
+              <TabsTrigger value="activities">Activities</TabsTrigger>
+              <TabsTrigger value="subjects">Study Subjects</TabsTrigger>
               <TabsTrigger value="preferences">Time Preferences</TabsTrigger>
               <TabsTrigger value="timetable">Timetable</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="activities">
+              <ActivityForm activities={activities} setActivities={setActivities} />
+            </TabsContent>
             
             <TabsContent value="subjects">
               <SubjectForm subjects={subjects} setSubjects={setSubjects} />
