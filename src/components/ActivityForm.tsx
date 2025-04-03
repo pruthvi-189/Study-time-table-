@@ -22,7 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { X, Edit, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Activity, ActivityType } from "./TimetableGenerator";
+import { Activity, ActivityType, TimePeriod } from "./TimetableGenerator";
 
 interface ActivityFormProps {
   activities: Activity[];
@@ -52,6 +52,12 @@ const activityTypes: {value: ActivityType, label: string}[] = [
   { value: "bedtime", label: "Evening Routine" }
 ];
 
+const timePeriods: {value: TimePeriod, label: string, description: string}[] = [
+  { value: "morning", label: "Morning", description: "Start of day to 12pm" },
+  { value: "afternoon", label: "Afternoon", description: "12pm to 4pm" },
+  { value: "evening", label: "Evening", description: "4pm to end of day" }
+];
+
 const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }) => {
   const [newActivity, setNewActivity] = useState<Activity>({
     id: "",
@@ -59,7 +65,7 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }
     type: "study",
     color: colors[0],
     hoursPerDay: 1,
-    priority: 5,
+    timePeriod: "morning", // Default to morning period
     fixedTime: false,
   });
   
@@ -93,7 +99,7 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }
       type: "study",
       color: colors[(activities.length + 1) % colors.length],
       hoursPerDay: 1,
-      priority: 5,
+      timePeriod: "morning", // Default to morning
       fixedTime: false,
     });
     
@@ -153,7 +159,7 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }
                   type: "study",
                   color: colors[activities.length % colors.length],
                   hoursPerDay: 1,
-                  priority: 5,
+                  timePeriod: "morning",
                   fixedTime: false
                 });
               }}
@@ -237,23 +243,31 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority (1-10)</Label>
-                <Input
-                  id="priority"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={editingActivity ? editingActivity.priority : newActivity.priority}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 5;
+                <Label htmlFor="timePeriod">Preferred Time Period</Label>
+                <Select
+                  value={editingActivity ? editingActivity.timePeriod : newActivity.timePeriod}
+                  onValueChange={(value: TimePeriod) => {
                     if (editingActivity) {
-                      setEditingActivity({ ...editingActivity, priority: value });
+                      setEditingActivity({ ...editingActivity, timePeriod: value });
                     } else {
-                      setNewActivity({ ...newActivity, priority: value });
+                      setNewActivity({ ...newActivity, timePeriod: value });
                     }
                   }}
-                />
-                <p className="text-xs text-gray-500">Higher number means higher priority</p>
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timePeriods.map((period) => (
+                      <SelectItem key={period.value} value={period.value}>
+                        <div>
+                          <span className="font-medium">{period.label}</span>
+                          <span className="text-xs text-gray-500 ml-2">({period.description})</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-center justify-between">
@@ -387,10 +401,10 @@ const ActivityForm: React.FC<ActivityFormProps> = ({ activities, setActivities }
               <div className="text-sm text-gray-500 mt-1 space-y-1">
                 <p>Type: {activityTypes.find(t => t.value === activity.type)?.label || activity.type}</p>
                 <p>{activity.hoursPerDay} {activity.hoursPerDay === 1 ? "hour" : "hours"} per day</p>
+                <p>Time Period: {timePeriods.find(p => p.value === activity.timePeriod)?.label || activity.timePeriod}</p>
                 {activity.fixedTime && activity.startTime && activity.endTime && (
                   <p>Time: {activity.startTime} - {activity.endTime}</p>
                 )}
-                <p>Priority: {activity.priority}/10</p>
               </div>
             </CardContent>
           </Card>
