@@ -445,18 +445,18 @@ const TimetableGenerator = () => {
         subjects.forEach(s => subjectMinutes[s.id] = Math.floor(studyNeeds[period] / subjects.length)); 
         
         while (periodSlots.length > 0 && Object.values(subjectMinutes).some(m => m > 0)) {
-          // Find best slot
-          const bestSlotIndex = periodSlots.findIndex(slot => {
+          // Find slots that are at least 1 hour (60 minutes) long for study sessions
+          const suitableSlotIndex = periodSlots.findIndex(slot => {
             const startParts = slot.start.split(':').map(Number);
             const endParts = slot.end.split(':').map(Number);
             const startMinutes = startParts[0] * 60 + startParts[1];
             const endMinutes = endParts[0] * 60 + endParts[1];
-            return (endMinutes - startMinutes) >= 30; // At least 30 min block
+            return (endMinutes - startMinutes) >= 60; // At least 60 min block for study
           });
           
-          if (bestSlotIndex === -1) break;
+          if (suitableSlotIndex === -1) break;
           
-          const slot = periodSlots[bestSlotIndex];
+          const slot = periodSlots[suitableSlotIndex];
           
           // Find subject with remaining time
           let allocated = false;
@@ -472,8 +472,9 @@ const TimetableGenerator = () => {
               const endMinutes = endParts[0] * 60 + endParts[1];
               const slotDuration = endMinutes - startMinutes;
               
-              // Take at most 60 minutes or what's needed
-              const blockSize = Math.min(60, slotDuration, subjectMinutes[subject.id]);
+              // Always allocate at least 60 minutes (1 hour) for study sessions
+              // Take at most what's needed or the full slot duration
+              const blockSize = Math.max(60, Math.min(slotDuration, subjectMinutes[subject.id]));
               
               // Create block
               const blockEndMinutes = startMinutes + blockSize;
@@ -495,10 +496,10 @@ const TimetableGenerator = () => {
               // Update remaining time in this slot
               if (blockSize === slotDuration) {
                 // Remove this slot
-                periodSlots.splice(bestSlotIndex, 1);
+                periodSlots.splice(suitableSlotIndex, 1);
               } else {
                 // Shrink this slot
-                periodSlots[bestSlotIndex].start = blockEnd;
+                periodSlots[suitableSlotIndex].start = blockEnd;
               }
               
               allocated = true;
