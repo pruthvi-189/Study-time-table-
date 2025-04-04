@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import TimetableGenerator from "../components/TimetableGenerator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,7 +69,6 @@ const Index = () => {
   const [showGenerator, setShowGenerator] = useState(false);
 
   useEffect(() => {
-    // Update schedule based on active tab
     if (activeTab === "highschool") {
       setCurrentSchedule(studentSchedules[0].schedule);
     } else if (activeTab === "college") {
@@ -81,25 +79,41 @@ const Index = () => {
   }, [activeTab]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-      <header className="bg-white shadow-sm py-6">
-        <div className="container mx-auto px-4">
-          <motion.h1 
-            className="text-2xl md:text-3xl font-bold text-gray-800 text-center md:text-left"
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5 }}
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 to-blue-100">
+      <header className="py-16 bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 shadow-lg">
+        <div className="container mx-auto px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{
+              duration: 0.8,
+              delay: 0.2,
+              ease: [0, 0.71, 0.2, 1.01]
+            }}
           >
-            Daily Schedule Planner
-          </motion.h1>
-          <motion.p 
-            className="text-gray-600 text-center md:text-left"
-            initial={{ y: -10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            Plan your entire day from wake-up to bedtime
-          </motion.p>
+            <motion.h1 
+              className="text-4xl md:text-6xl font-bold text-white mb-4"
+              animate={{ 
+                y: [0, -10, 0],
+              }}
+              transition={{ 
+                duration: 2.5, 
+                ease: "easeInOut", 
+                repeat: Infinity,
+                repeatType: "reverse" 
+              }}
+            >
+              Daily Schedule Planner
+            </motion.h1>
+            <motion.p 
+              className="text-xl text-white/90"
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.7, delay: 0.6 }}
+            >
+              Plan your entire day from wake-up to bedtime
+            </motion.p>
+          </motion.div>
         </div>
       </header>
 
