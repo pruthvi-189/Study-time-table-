@@ -173,8 +173,8 @@ const SubjectForm: React.FC<SubjectFormProps> = ({ subjects, setSubjects }) => {
                       <p className="font-medium">{subject.name}</p>
                       <p className="text-sm text-gray-500">
                         {subject.hoursPerWeek} hours/week
-                        {subject.fixedTime && (
-                          <span> • {subject.startTime} - {subject.endTime}</span>
+                        {subject.fixedTime && subject.startTime && subject.endTime && (
+                          <span> • Fixed: {subject.startTime} - {subject.endTime}</span>
                         )}
                       </p>
                     </div>
