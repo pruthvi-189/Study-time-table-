@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Card,
@@ -41,6 +40,7 @@ const activityIcons: Record<ActivityType | "break", React.ReactNode> = {
   school: <School size={16} />,
   extracurricular: <Music size={16} />,
   bedtime: <AlarmClock size={16} />,
+  free: <Clock size={16} />,
   break: <Clock size={16} />
 };
 
@@ -73,7 +73,6 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
     );
   };
 
-  // Get all hours between earliest and latest
   const getTimeSlots = () => {
     const earliest = getEarliestStartTime();
     const latest = getLatestEndTime();
@@ -95,6 +94,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
 
   const getBlockLabel = (block: TimeBlock) => {
     if (block.type === "break") return "Break";
+    if (block.type === "free") return "Free Time";
     if (block.subject) return block.subject.name;
     if (block.activity) return block.activity.name;
     return "";
@@ -102,6 +102,7 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
 
   const getBlockColor = (block: TimeBlock) => {
     if (block.type === "break") return "#f0f0f0";
+    if (block.type === "free") return "#e0e0e0";
     if (block.subject) return block.subject.color;
     if (block.activity) return block.activity.color;
     return "#cccccc";
@@ -134,7 +135,6 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
               </div>
               
               {activeDays.map(day => {
-                // Find blocks that include this time slot
                 const blocksForThisSlot = timetable.filter(
                   block => {
                     return block.day === day && 
@@ -146,10 +146,8 @@ const Timetable: React.FC<TimetableProps> = ({ timetable, setTimetable, dayPrefe
                 return (
                   <div key={`${day}-${timeSlot}`} className="relative p-1 min-h-[60px]">
                     {blocksForThisSlot.map(block => {
-                      // Only show block content at its starting time slot
                       const isStartSlot = block.startTime === timeSlot;
                       
-                      // Calculate how many time slots this block spans
                       const startSlotIndex = timeSlots.indexOf(block.startTime);
                       const endSlotIndex = timeSlots.findIndex(t => t >= block.endTime);
                       const slotSpan = endSlotIndex - startSlotIndex || 1;

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +27,8 @@ export type ActivityType =
   | "exercise"
   | "school"
   | "extracurricular"
-  | "bedtime";
+  | "bedtime"
+  | "free";
 
 export type TimePeriod = "morning" | "afternoon" | "evening";
 
@@ -133,6 +133,15 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     fixedTime: true,
     startTime: "21:00",
     endTime: "22:00"
+  },
+  {
+    id: "free",
+    name: "Free Time",
+    type: "free",
+    color: "#e0e0e0",
+    hoursPerDay: 0,
+    timePeriod: "afternoon",
+    fixedTime: false
   }
 ];
 
@@ -194,10 +203,8 @@ const TimetableGenerator = () => {
   const [activeTab, setActiveTab] = useState("activities");
 
   const generateTimetable = () => {
-    // Clear previous timetable
     const newTimetable: TimeBlock[] = [];
     
-    // Sort days to ensure consistent order
     const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     const availableDays = dayPreferences
       .filter(dp => {
@@ -212,34 +219,79 @@ const TimetableGenerator = () => {
       return;
     }
 
-    // First schedule fixed activities for each day
     availableDays.forEach(dayPref => {
       const day = dayPref.day;
       const dayStartTime = dayPref.startTime;
       const dayEndTime = dayPref.endTime;
       
-      // Add fixed activities first
       const fixedActivities = activities.filter(activity => activity.fixedTime && activity.startTime && activity.endTime);
       
       fixedActivities.forEach(activity => {
-        // Check if activity falls within day hours
-        if (activity.startTime! >= dayStartTime && activity.endTime! <= dayEndTime) {
-          newTimetable.push({
-            id: `${day}-${activity.id}`,
-            activity: activity,
-            day: day,
-            startTime: activity.startTime!,
-            endTime: activity.endTime!,
-            type: activity.type
-          });
+        if (activity.type === "sleep" && activity.startTime && activity.endTime) {
+          const startHour = parseInt(activity.startTime.split(":")[0]);
+          const endHour = parseInt(activity.endTime.split(":")[0]);
+          
+          if (startHour > endHour || (startHour === endHour && activity.startTime > activity.endTime)) {
+            newTimetable.push({
+              id: `${day}-${activity.id}-evening`,
+              activity: activity,
+              day: day,
+              startTime: activity.startTime,
+              endTime: "23:59",
+              type: activity.type
+            });
+            
+            newTimetable.push({
+              id: `${day}-${activity.id}-morning`,
+              activity: activity,
+              day: day,
+              startTime: "00:00",
+              endTime: activity.endTime,
+              type: activity.type
+            });
+          } else {
+            if (
+              (activity.startTime >= dayStartTime && activity.startTime < dayEndTime) ||
+              (activity.endTime > dayStartTime && activity.endTime <= dayEndTime) ||
+              (activity.startTime <= dayStartTime && activity.endTime >= dayEndTime)
+            ) {
+              const effectiveStartTime = Math.max(0, dayStartTime, activity.startTime);
+              const effectiveEndTime = Math.min(dayEndTime, activity.endTime);
+              
+              newTimetable.push({
+                id: `${day}-${activity.id}`,
+                activity: activity,
+                day: day,
+                startTime: effectiveStartTime,
+                endTime: effectiveEndTime,
+                type: activity.type
+              });
+            }
+          }
+        } else {
+          if (
+            (activity.startTime! >= dayStartTime && activity.startTime! < dayEndTime) ||
+            (activity.endTime! > dayStartTime && activity.endTime! <= dayEndTime) ||
+            (activity.startTime! <= dayStartTime && activity.endTime! >= dayEndTime)
+          ) {
+            const effectiveStartTime = activity.startTime! < dayStartTime ? dayStartTime : activity.startTime!;
+            const effectiveEndTime = activity.endTime! > dayEndTime ? dayEndTime : activity.endTime!;
+            
+            newTimetable.push({
+              id: `${day}-${activity.id}`,
+              activity: activity,
+              day: day,
+              startTime: effectiveStartTime,
+              endTime: effectiveEndTime,
+              type: activity.type
+            });
+          }
         }
       });
       
-      // Add fixed-time study subjects
       const fixedSubjects = subjects.filter(subject => subject.fixedTime && subject.startTime && subject.endTime);
       
       fixedSubjects.forEach(subject => {
-        // Check if subject falls within day hours
         if (subject.startTime! >= dayStartTime && subject.endTime! <= dayEndTime) {
           newTimetable.push({
             id: `${day}-subject-${subject.id}`,
@@ -252,7 +304,6 @@ const TimetableGenerator = () => {
         }
       });
       
-      // Add breaks
       if (dayPref.breakTime && dayPref.breakTime.includes('-')) {
         const [breakStart, breakEnd] = dayPref.breakTime.split('-');
         if (breakStart && breakEnd) {
@@ -267,7 +318,6 @@ const TimetableGenerator = () => {
       }
     });
     
-    // Create timeblocks array - 30 min intervals for the whole day
     const timeBlocks = [];
     for (let hour = 0; hour < 24; hour++) {
       for (let min = 0; min < 60; min += 30) {
@@ -276,272 +326,250 @@ const TimetableGenerator = () => {
       }
     }
     
-    // For each day, identify free time slots
-    availableDays.forEach(dayPref => {
-      const day = dayPref.day;
-      const dayStartTime = dayPref.startTime;
-      const dayEndTime = dayPref.endTime;
+    const freeTimeSlots: {start: string, end: string, period: TimePeriod}[] = [];
+    
+    const morningEnd = "12:00";
+    const afternoonEnd = "16:00";
+    
+    if (dayStartTime < morningEnd) {
+      freeTimeSlots.push({
+        start: dayStartTime, 
+        end: dayStartTime < morningEnd ? morningEnd : dayStartTime,
+        period: "morning"
+      });
+    }
+    
+    if (dayStartTime < afternoonEnd && dayEndTime > morningEnd) {
+      freeTimeSlots.push({
+        start: dayStartTime > morningEnd ? dayStartTime : morningEnd, 
+        end: dayEndTime < afternoonEnd ? dayEndTime : afternoonEnd,
+        period: "afternoon"
+      });
+    }
+    
+    if (dayEndTime > afternoonEnd) {
+      freeTimeSlots.push({
+        start: dayStartTime > afternoonEnd ? dayStartTime : afternoonEnd, 
+        end: dayEndTime,
+        period: "evening"
+      });
+    }
+    
+    const dayEvents = newTimetable.filter(block => block.day === day);
+    
+    freeTimeSlots = freeTimeSlots.flatMap(slot => {
+      let resultSlots = [slot];
       
-      let freeTimeSlots: {start: string, end: string, period: TimePeriod}[] = [];
-      
-      // Initialize with full day, divided into time periods
-      const morningEnd = "12:00";
-      const afternoonEnd = "16:00";
-      
-      // Morning period (start of day to 12pm)
-      if (dayStartTime < morningEnd) {
-        freeTimeSlots.push({
-          start: dayStartTime, 
-          end: dayStartTime < morningEnd ? morningEnd : dayStartTime,
-          period: "morning"
-        });
-      }
-      
-      // Afternoon period (12pm to 4pm)
-      if (dayStartTime < afternoonEnd && dayEndTime > morningEnd) {
-        freeTimeSlots.push({
-          start: dayStartTime > morningEnd ? dayStartTime : morningEnd, 
-          end: dayEndTime < afternoonEnd ? dayEndTime : afternoonEnd,
-          period: "afternoon"
-        });
-      }
-      
-      // Evening period (4pm to end of day)
-      if (dayEndTime > afternoonEnd) {
-        freeTimeSlots.push({
-          start: dayStartTime > afternoonEnd ? dayStartTime : afternoonEnd, 
-          end: dayEndTime,
-          period: "evening"
-        });
-      }
-      
-      // Remove occupied time slots
-      const dayEvents = newTimetable.filter(block => block.day === day);
-      
-      freeTimeSlots = freeTimeSlots.flatMap(slot => {
-        let resultSlots = [slot];
-        
-        dayEvents.forEach(event => {
-          resultSlots = resultSlots.flatMap(currentSlot => {
-            // No overlap
-            if (event.endTime <= currentSlot.start || event.startTime >= currentSlot.end) {
-              return [currentSlot];
-            }
-            
-            // Event completely covers slot
-            if (event.startTime <= currentSlot.start && event.endTime >= currentSlot.end) {
-              return [];
-            }
-            
-            // Event in middle of slot
-            if (event.startTime > currentSlot.start && event.endTime < currentSlot.end) {
-              return [
-                {start: currentSlot.start, end: event.startTime, period: currentSlot.period},
-                {start: event.endTime, end: currentSlot.end, period: currentSlot.period}
-              ];
-            }
-            
-            // Event overlaps start of slot
-            if (event.startTime <= currentSlot.start && event.endTime < currentSlot.end) {
-              return [{start: event.endTime, end: currentSlot.end, period: currentSlot.period}];
-            }
-            
-            // Event overlaps end of slot
-            if (event.startTime > currentSlot.start && event.endTime >= currentSlot.end) {
-              return [{start: currentSlot.start, end: event.startTime, period: currentSlot.period}];
-            }
-            
+      dayEvents.forEach(event => {
+        resultSlots = resultSlots.flatMap(currentSlot => {
+          if (event.endTime <= currentSlot.start || event.startTime >= currentSlot.end) {
             return [currentSlot];
+          }
+          
+          if (event.startTime <= currentSlot.start && event.endTime >= currentSlot.end) {
+            return [];
+          }
+          
+          if (event.startTime > currentSlot.start && event.endTime < currentSlot.end) {
+            return [
+              {start: currentSlot.start, end: event.startTime, period: currentSlot.period},
+              {start: event.endTime, end: currentSlot.end, period: currentSlot.period}
+            ];
+          }
+          
+          if (event.startTime <= currentSlot.start && event.endTime < currentSlot.end) {
+            return [{start: event.endTime, end: currentSlot.end, period: currentSlot.period}];
+          }
+          
+          if (event.startTime > currentSlot.start && event.endTime >= currentSlot.end) {
+            return [{start: currentSlot.start, end: event.startTime, period: currentSlot.period}];
+          }
+          
+          return [currentSlot];
+        });
+      });
+      
+      return resultSlots;
+    });
+    
+    const periodFreeTimes: Record<TimePeriod, number> = {
+      morning: 0,
+      afternoon: 0,
+      evening: 0
+    };
+    
+    freeTimeSlots.forEach(slot => {
+      const startParts = slot.start.split(':').map(Number);
+      const endParts = slot.end.split(':').map(Number);
+      const startMinutes = startParts[0] * 60 + startParts[1];
+      const endMinutes = endParts[0] * 60 + endParts[1];
+      periodFreeTimes[slot.period] += (endMinutes - startMinutes);
+    });
+    
+    const activitiesByPeriod: Record<TimePeriod, Activity[]> = {
+      morning: activities.filter(a => !a.fixedTime && a.timePeriod === 'morning'),
+      afternoon: activities.filter(a => !a.fixedTime && a.timePeriod === 'afternoon'),
+      evening: activities.filter(a => !a.fixedTime && a.timePeriod === 'evening')
+    };
+    
+    const flexibleSubjects = subjects.filter(s => !s.fixedTime);
+    
+    const totalStudyMinutes = flexibleSubjects.reduce((sum, s) => sum + (s.hoursPerWeek * 60 / 7), 0);
+    const studyPerPeriod = Math.floor(totalStudyMinutes / 3);
+    const studyNeeds: Record<TimePeriod, number> = {
+      morning: studyPerPeriod,
+      afternoon: studyPerPeriod,
+      evening: totalStudyMinutes - (studyPerPeriod * 2)
+    };
+    
+    for (const period of ['morning', 'afternoon', 'evening'] as TimePeriod[]) {
+      const periodActivities = activitiesByPeriod[period];
+      let periodSlots = freeTimeSlots.filter(slot => slot.period === period);
+      
+      const activitiesTimeNeeded = periodActivities.reduce((sum, a) => sum + a.hoursPerDay * 60, 0);
+      
+      if (activitiesTimeNeeded + studyNeeds[period] > periodFreeTimes[period]) {
+        toast.warning(`Not enough free time in the ${period} period on ${day} to fit all activities and study.`);
+      }
+      
+      for (const activity of periodActivities) {
+        let minutesNeeded = activity.hoursPerDay * 60;
+        let minutesScheduled = 0;
+        
+        while (minutesScheduled < minutesNeeded && periodSlots.length > 0) {
+          const bestSlotIndex = periodSlots.findIndex(slot => {
+            const startParts = slot.start.split(':').map(Number);
+            const endParts = slot.end.split(':').map(Number);
+            const startMinutes = startParts[0] * 60 + startParts[1];
+            const endMinutes = endParts[0] * 60 + endParts[1];
+            return (endMinutes - startMinutes) >= 30;
           });
+          
+          if (bestSlotIndex === -1) break;
+          
+          const slot = periodSlots[bestSlotIndex];
+          
+          const startParts = slot.start.split(':').map(Number);
+          const endParts = slot.end.split(':').map(Number);
+          const startMinutes = startParts[0] * 60 + startParts[1];
+          const endMinutes = endParts[0] * 60 + endParts[1];
+          const slotDuration = endMinutes - startMinutes;
+          
+          const blockSize = Math.min(60, slotDuration, minutesNeeded - minutesScheduled);
+          
+          const blockEndMinutes = startMinutes + blockSize;
+          const blockEndHour = Math.floor(blockEndMinutes / 60);
+          const blockEndMin = blockEndMinutes % 60;
+          const blockEnd = `${blockEndHour.toString().padStart(2, '0')}:${blockEndMin.toString().padStart(2, '0')}`;
+          
+          newTimetable.push({
+            id: `${day}-${activity.id}-${slot.start}`,
+            activity: activity,
+            day: day,
+            startTime: slot.start,
+            endTime: blockEnd,
+            type: activity.type
+          });
+          
+          minutesScheduled += blockSize;
+          
+          if (blockSize === slotDuration) {
+            periodSlots.splice(bestSlotIndex, 1);
+          } else {
+            periodSlots[bestSlotIndex].start = blockEnd;
+          }
+        }
+      }
+      
+      let subjectIndex = 0;
+      const periodSubjects = [...flexibleSubjects];
+      let subjectMinutes: { [key: string]: number } = {};
+      
+      flexibleSubjects.forEach(s => subjectMinutes[s.id] = Math.floor(studyNeeds[period] / flexibleSubjects.length));
+      
+      while (periodSlots.length > 0 && Object.values(subjectMinutes).some(m => m > 0)) {
+        const suitableSlotIndex = periodSlots.findIndex(slot => {
+          const startParts = slot.start.split(':').map(Number);
+          const endParts = slot.end.split(':').map(Number);
+          const startMinutes = startParts[0] * 60 + startParts[1];
+          const endMinutes = endParts[0] * 60 + endParts[1];
+          return (endMinutes - startMinutes) >= 60;
         });
         
-        return resultSlots;
-      });
-      
-      // Calculate total free time available for each period
-      const periodFreeTimes: Record<TimePeriod, number> = {
-        morning: 0,
-        afternoon: 0,
-        evening: 0
-      };
-      
-      freeTimeSlots.forEach(slot => {
-        const startParts = slot.start.split(':').map(Number);
-        const endParts = slot.end.split(':').map(Number);
-        const startMinutes = startParts[0] * 60 + startParts[1];
-        const endMinutes = endParts[0] * 60 + endParts[1];
-        periodFreeTimes[slot.period] += (endMinutes - startMinutes);
-      });
-      
-      // Now distribute activities by time period
-      const activitiesByPeriod: Record<TimePeriod, Activity[]> = {
-        morning: activities.filter(a => !a.fixedTime && a.timePeriod === 'morning'),
-        afternoon: activities.filter(a => !a.fixedTime && a.timePeriod === 'afternoon'),
-        evening: activities.filter(a => !a.fixedTime && a.timePeriod === 'evening')
-      };
-      
-      // Get non-fixed-time subjects
-      const flexibleSubjects = subjects.filter(s => !s.fixedTime);
-      
-      // Calculate study time needs - distribute evenly across periods for now
-      const totalStudyMinutes = flexibleSubjects.reduce((sum, s) => sum + (s.hoursPerWeek * 60 / 7), 0);
-      const studyPerPeriod = Math.floor(totalStudyMinutes / 3);
-      const studyNeeds: Record<TimePeriod, number> = {
-        morning: studyPerPeriod,
-        afternoon: studyPerPeriod,
-        evening: totalStudyMinutes - (studyPerPeriod * 2) // Remainder goes to evening
-      };
-      
-      // For each period, schedule activities and study time
-      for (const period of ['morning', 'afternoon', 'evening'] as TimePeriod[]) {
-        const periodActivities = activitiesByPeriod[period];
-        let periodSlots = freeTimeSlots.filter(slot => slot.period === period);
+        if (suitableSlotIndex === -1) break;
         
-        // Calculate total time needed for activities in this period
-        const activitiesTimeNeeded = periodActivities.reduce((sum, a) => sum + a.hoursPerDay * 60, 0);
+        const slot = periodSlots[suitableSlotIndex];
         
-        if (activitiesTimeNeeded + studyNeeds[period] > periodFreeTimes[period]) {
-          toast.warning(`Not enough free time in the ${period} period on ${day} to fit all activities and study.`);
-        }
+        let allocated = false;
+        const startSubjectIndex = subjectIndex;
         
-        // Distribute activities first
-        for (const activity of periodActivities) {
-          let minutesNeeded = activity.hoursPerDay * 60;
-          let minutesScheduled = 0;
-          
-          // Try to fit this activity into free slots
-          while (minutesScheduled < minutesNeeded && periodSlots.length > 0) {
-            // Find best slot - pick the earliest one with sufficient duration
-            const bestSlotIndex = periodSlots.findIndex(slot => {
-              const startParts = slot.start.split(':').map(Number);
-              const endParts = slot.end.split(':').map(Number);
-              const startMinutes = startParts[0] * 60 + startParts[1];
-              const endMinutes = endParts[0] * 60 + endParts[1];
-              return (endMinutes - startMinutes) >= 30; // At least 30 min block
-            });
-            
-            if (bestSlotIndex === -1) break;
-            
-            const slot = periodSlots[bestSlotIndex];
-            
-            // How much time to allocate
+        do {
+          const subject = periodSubjects[subjectIndex];
+          if (subjectMinutes[subject.id] > 0) {
             const startParts = slot.start.split(':').map(Number);
             const endParts = slot.end.split(':').map(Number);
             const startMinutes = startParts[0] * 60 + startParts[1];
             const endMinutes = endParts[0] * 60 + endParts[1];
             const slotDuration = endMinutes - startMinutes;
             
-            // Take at most 60 minutes or what's needed
-            const blockSize = Math.min(60, slotDuration, minutesNeeded - minutesScheduled);
+            const blockSize = Math.max(60, Math.min(slotDuration, subjectMinutes[subject.id]));
             
-            // Create block
             const blockEndMinutes = startMinutes + blockSize;
             const blockEndHour = Math.floor(blockEndMinutes / 60);
             const blockEndMin = blockEndMinutes % 60;
             const blockEnd = `${blockEndHour.toString().padStart(2, '0')}:${blockEndMin.toString().padStart(2, '0')}`;
             
             newTimetable.push({
-              id: `${day}-${activity.id}-${slot.start}`,
-              activity: activity,
+              id: `${day}-study-${subject.id}-${slot.start}`,
+              subject: subject,
               day: day,
               startTime: slot.start,
               endTime: blockEnd,
-              type: activity.type
+              type: "study"
             });
             
-            minutesScheduled += blockSize;
+            subjectMinutes[subject.id] -= blockSize;
             
-            // Update remaining time in this slot
             if (blockSize === slotDuration) {
-              // Remove this slot
-              periodSlots.splice(bestSlotIndex, 1);
+              periodSlots.splice(suitableSlotIndex, 1);
             } else {
-              // Shrink this slot
-              periodSlots[bestSlotIndex].start = blockEnd;
-            }
-          }
-        }
-        
-        // Now distribute study subjects across remaining slots in this period
-        let subjectIndex = 0;
-        const periodSubjects = [...flexibleSubjects]; // Copy subjects to rotate through
-        let subjectMinutes: { [key: string]: number } = {};
-        flexibleSubjects.forEach(s => subjectMinutes[s.id] = Math.floor(studyNeeds[period] / flexibleSubjects.length)); 
-        
-        while (periodSlots.length > 0 && Object.values(subjectMinutes).some(m => m > 0)) {
-          // Find slots that are at least 1 hour (60 minutes) long for study sessions
-          const suitableSlotIndex = periodSlots.findIndex(slot => {
-            const startParts = slot.start.split(':').map(Number);
-            const endParts = slot.end.split(':').map(Number);
-            const startMinutes = startParts[0] * 60 + startParts[1];
-            const endMinutes = endParts[0] * 60 + endParts[1];
-            return (endMinutes - startMinutes) >= 60; // At least 60 min block for study
-          });
-          
-          if (suitableSlotIndex === -1) break;
-          
-          const slot = periodSlots[suitableSlotIndex];
-          
-          // Find subject with remaining time
-          let allocated = false;
-          const startSubjectIndex = subjectIndex;
-          
-          do {
-            const subject = periodSubjects[subjectIndex];
-            if (subjectMinutes[subject.id] > 0) {
-              // How much time to allocate
-              const startParts = slot.start.split(':').map(Number);
-              const endParts = slot.end.split(':').map(Number);
-              const startMinutes = startParts[0] * 60 + startParts[1];
-              const endMinutes = endParts[0] * 60 + endParts[1];
-              const slotDuration = endMinutes - startMinutes;
-              
-              // Always allocate at least 60 minutes (1 hour) for study sessions
-              // Take at most what's needed or the full slot duration
-              const blockSize = Math.max(60, Math.min(slotDuration, subjectMinutes[subject.id]));
-              
-              // Create block
-              const blockEndMinutes = startMinutes + blockSize;
-              const blockEndHour = Math.floor(blockEndMinutes / 60);
-              const blockEndMin = blockEndMinutes % 60;
-              const blockEnd = `${blockEndHour.toString().padStart(2, '0')}:${blockEndMin.toString().padStart(2, '0')}`;
-              
-              newTimetable.push({
-                id: `${day}-study-${subject.id}-${slot.start}`,
-                subject: subject,
-                day: day,
-                startTime: slot.start,
-                endTime: blockEnd,
-                type: "study"
-              });
-              
-              subjectMinutes[subject.id] -= blockSize;
-              
-              // Update remaining time in this slot
-              if (blockSize === slotDuration) {
-                // Remove this slot
-                periodSlots.splice(suitableSlotIndex, 1);
-              } else {
-                // Shrink this slot
-                periodSlots[suitableSlotIndex].start = blockEnd;
-              }
-              
-              allocated = true;
+              periodSlots[suitableSlotIndex].start = blockEnd;
             }
             
-            // Move to next subject
-            subjectIndex = (subjectIndex + 1) % periodSubjects.length;
-          } while (!allocated && subjectIndex !== startSubjectIndex);
-          
-          if (!allocated) {
-            // No subjects need more time
-            break;
+            allocated = true;
           }
+          
+          subjectIndex = (subjectIndex + 1) % periodSubjects.length;
+        } while (!allocated && subjectIndex !== startSubjectIndex);
+        
+        if (!allocated) {
+          break;
         }
       }
-    });
-
-    // Sort timetable by day and time
+      
+      const freeTimeActivity = activities.find(a => a.type === "free");
+      if (freeTimeActivity && periodSlots.length > 0) {
+        periodSlots.forEach(slot => {
+          const startParts = slot.start.split(':').map(Number);
+          const endParts = slot.end.split(':').map(Number);
+          const startMinutes = startParts[0] * 60 + startParts[1];
+          const endMinutes = endParts[0] * 60 + endParts[1];
+          const slotDuration = endMinutes - startMinutes;
+          
+          if (slotDuration >= 15) {
+            newTimetable.push({
+              id: `${day}-free-${slot.start}`,
+              activity: freeTimeActivity,
+              day: day,
+              startTime: slot.start,
+              endTime: slot.end,
+              type: "free"
+            });
+          }
+        });
+      }
+    }
+    
     const sortedTimetable = [...newTimetable].sort((a, b) => {
       const dayOrder = days.indexOf(a.day) - days.indexOf(b.day);
       if (dayOrder !== 0) return dayOrder;
@@ -551,7 +579,6 @@ const TimetableGenerator = () => {
     setTimetable(sortedTimetable);
     toast.success("Full daily schedule generated!");
     
-    // Switch to timetable tab
     setActiveTab("timetable");
   };
 
@@ -561,7 +588,6 @@ const TimetableGenerator = () => {
   };
 
   const exportTimetable = () => {
-    // Create a printable version
     window.print();
   };
 

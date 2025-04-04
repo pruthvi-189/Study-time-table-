@@ -31,10 +31,8 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
     setIsGenerating(true);
 
     try {
-      // Simulate AI processing (we'll replace this with actual AI later)
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Get active days from preferences
       const activeDays = dayPreferences.filter(dp => dp.startTime && dp.endTime);
       
       if (activeDays.length === 0) {
@@ -42,11 +40,9 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
         return;
       }
 
-      // For demo purposes, we'll generate a schedule based on the prompt keywords
       const newSchedule: TimeBlock[] = [];
       const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
       
-      // Parse the prompt for keywords
       const lowerPrompt = prompt.toLowerCase();
       const earlyMorning = lowerPrompt.includes("early") || lowerPrompt.includes("morning");
       const lateNight = lowerPrompt.includes("night") || lowerPrompt.includes("late");
@@ -54,35 +50,41 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
       const studyFocus = lowerPrompt.includes("study") || lowerPrompt.includes("focus") || lowerPrompt.includes("academic");
       const balancedLifestyle = lowerPrompt.includes("balance") || lowerPrompt.includes("varied");
       
-      // Process each active day - with variety
       activeDays.forEach((dayPref, dayIndex) => {
         const day = dayPref.day;
         const dayNumber = days.indexOf(day);
         
-        // Add variation based on the day of the week
         const isWeekend = day === "Saturday" || day === "Sunday";
         const isMiddleOfWeek = day === "Wednesday";
         
-        // Vary morning start times by day
-        let morningOffset = dayNumber % 2 === 0 ? 0 : 30; // Different start times on alternating days
-        if (isWeekend) morningOffset = 60; // Later start on weekends
+        let morningOffset = dayNumber % 2 === 0 ? 0 : 30;
+        if (isWeekend) morningOffset = 60;
         
         const morningBase = earlyMorning ? "05:00" : "06:30";
         const [baseHour, baseMinute] = morningBase.split(":").map(Number);
         
-        // Calculate morning start with offset
         const morningStartMinutes = (baseHour * 60 + baseMinute + morningOffset) % (24 * 60);
         const morningStartHour = Math.floor(morningStartMinutes / 60);
         const morningStartMinute = morningStartMinutes % 60;
         const morningStart = `${morningStartHour.toString().padStart(2, '0')}:${morningStartMinute.toString().padStart(2, '0')}`;
         
-        // Calculate morning end with offset
         const morningEndMinutes = (morningStartMinutes + 60) % (24 * 60);
         const morningEndHour = Math.floor(morningEndMinutes / 60);
         const morningEndMinute = morningEndMinutes % 60;
         const morningEnd = `${morningEndHour.toString().padStart(2, '0')}:${morningEndMinute.toString().padStart(2, '0')}`;
+
+        const sleepActivity = activities.find(a => a.type === "sleep");
+        if (sleepActivity) {
+          newSchedule.push({
+            id: `${day}-sleep-overnight`,
+            activity: sleepActivity,
+            day: day,
+            startTime: "00:00",
+            endTime: morningStart,
+            type: "sleep"
+          });
+        }
         
-        // Add morning routine
         newSchedule.push({
           id: `${day}-morning-routine`,
           activity: activities.find(a => a.type === "freshup"),
@@ -92,11 +94,8 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           type: "freshup"
         });
 
-        // Add exercise - vary by day
         if (exerciseFocus || dayNumber % 2 === 0 || isWeekend) {
-          // Alternate between morning and evening exercise
           if ((dayNumber % 3 === 0 || balancedLifestyle) && !isWeekend) {
-            // Evening exercise some days
             newSchedule.push({
               id: `${day}-exercise`,
               activity: activities.find(a => a.type === "exercise"),
@@ -106,7 +105,6 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
               type: "exercise"
             });
           } else {
-            // Morning exercise other days
             newSchedule.push({
               id: `${day}-exercise`,
               activity: activities.find(a => a.type === "exercise"),
@@ -118,7 +116,6 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           }
         }
 
-        // Add school/work hours - different for weekends
         if (!isWeekend) {
           newSchedule.push({
             id: `${day}-school`,
@@ -129,7 +126,6 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
             type: "school"
           });
         } else {
-          // Weekend leisure instead of school
           newSchedule.push({
             id: `${day}-leisure`,
             activity: activities.find(a => a.type === "extracurricular"),
@@ -140,52 +136,39 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           });
         }
 
-        // Add study sessions for different subjects on different days
         if (subjects.length > 0) {
-          // Filter subjects by day - we'll rotate through them
-          // Each day focuses on different subjects
           const todaySubjects = subjects.filter((_, idx) => {
-            // Distribute subjects across days of week
-            // Math: study it 3 times a week (Mon, Wed, Fri)
             if (idx === 0 && (day === "Monday" || day === "Wednesday" || day === "Friday")) {
               return true;
             }
-            // Science: study it 2 times a week (Tue, Thu)
             else if (idx === 1 && (day === "Tuesday" || day === "Thursday")) {
               return true;
             }
-            // Languages: study them 3 times a week (Mon, Thu, Sat) 
             else if (idx === 2 && (day === "Monday" || day === "Thursday" || day === "Saturday")) {
               return true;
             }
-            // History/Social Studies: 2 times a week (Wed, Fri)
             else if (idx === 3 && (day === "Wednesday" || day === "Friday")) {
               return true;
             }
-            // Art/Music: weekends
             else if (idx === 4 && (day === "Saturday" || day === "Sunday")) {
               return true;
             }
-            // Other subjects spread throughout
             else if (idx > 4) {
               return (idx + dayNumber) % 7 === 0;
             }
             return false;
           });
 
-          // If no subjects match our rotation, take at least one
           const subjectsToStudy = todaySubjects.length > 0 
             ? todaySubjects 
             : subjects.length > 0 ? [subjects[dayNumber % subjects.length]] : [];
           
           if (subjectsToStudy.length > 0) {
-            // Vary start time by day
             let startHour = isWeekend ? 14 : 16;
-            startHour = (startHour + dayNumber % 2) % 24; // Slight variation
+            startHour = (startHour + dayNumber % 2) % 24;
             let startTime = `${startHour.toString().padStart(2, '0')}:00`;
             
             subjectsToStudy.forEach((subject, index) => {
-              // Calculate study duration (1-2 hours)
               const studyHours = studyFocus ? 2 : 1;
               const endHour = parseInt(startTime.split(":")[0]) + studyHours;
               const endTime = `${endHour.toString().padStart(2, '0')}:00`;
@@ -204,17 +187,15 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           }
         }
 
-        // Add evening activity - different by day
         const eveningActivities = [
-          { start: "18:00", end: "20:00" }, // Standard evening activity
-          { start: "17:30", end: "19:30" }, // Earlier evening activity
-          { start: "19:00", end: "21:00" }  // Later evening activity
+          { start: "18:00", end: "20:00" },
+          { start: "17:30", end: "19:30" },
+          { start: "19:00", end: "21:00" }
         ];
         
         const eveningVariation = dayNumber % eveningActivities.length;
         const eveningActivity = eveningActivities[eveningVariation];
         
-        // Only add extracurricular if not a study-heavy day or if it's a weekend
         if (!studyFocus || dayNumber % 2 === 0 || isWeekend) {
           newSchedule.push({
             id: `${day}-evening-activity`,
@@ -226,23 +207,19 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           });
         }
 
-        // Add bedtime routine - vary by day of week
-        let bedtimeMins = lateNight ? 22 * 60 : 21 * 60; // Base bedtime in minutes
-        
-        // Adjust for weekends and day variations
+        let bedtimeMins = lateNight ? 22 * 60 : 21 * 60;
         if (isWeekend) {
-          bedtimeMins += 60; // 1 hour later on weekends
+          bedtimeMins += 60;
         } else if (isMiddleOfWeek) {
-          bedtimeMins -= 30; // 30 mins earlier mid-week to recover
+          bedtimeMins -= 30;
         } else {
-          bedtimeMins += (dayNumber % 3) * 15; // Small variations other days
+          bedtimeMins += (dayNumber % 3) * 15;
         }
         
         const bedtimeHour = Math.floor(bedtimeMins / 60);
         const bedtimeMinute = bedtimeMins % 60;
         const bedtimeStart = `${bedtimeHour.toString().padStart(2, '0')}:${bedtimeMinute.toString().padStart(2, '0')}`;
         
-        // Sleep start is 1 hour after bedtime routine starts
         const sleepMins = bedtimeMins + 60;
         const sleepHour = Math.floor(sleepMins / 60) % 24;
         const sleepMinute = sleepMins % 60;
@@ -257,15 +234,66 @@ const AIScheduleGenerator: React.FC<AIScheduleGeneratorProps> = ({
           type: "bedtime"
         });
         
-        // Sleep until morning
         newSchedule.push({
-          id: `${day}-sleep`,
+          id: `${day}-sleep-night`,
           activity: activities.find(a => a.type === "sleep"),
           day: day,
           startTime: sleepStart,
-          endTime: morningStart,
+          endTime: "23:59",
           type: "sleep"
         });
+
+        const freeTimeActivity = activities.find(a => a.type === "free");
+        if (freeTimeActivity) {
+          const dayBlocks = newSchedule.filter(block => block.day === day);
+          dayBlocks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+          
+          const timePoints = [];
+          for (let h = 0; h < 24; h++) {
+            for (let m = 0; m < 60; m += 30) {
+              timePoints.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+            }
+          }
+          
+          timePoints.push("23:59");
+          
+          for (let i = 0; i < timePoints.length - 1; i++) {
+            const currentTime = timePoints[i];
+            const nextTime = timePoints[i+1];
+            
+            const isTimeSlotFree = !dayBlocks.some(block => 
+              block.startTime <= currentTime && block.endTime > currentTime
+            );
+            
+            if (isTimeSlotFree) {
+              let j = i + 1;
+              while (j < timePoints.length && !dayBlocks.some(block => 
+                block.startTime <= timePoints[j] && block.endTime > timePoints[j]
+              )) {
+                j++;
+              }
+              
+              if (j > i + 1) {
+                newSchedule.push({
+                  id: `${day}-free-${currentTime}`,
+                  activity: freeTimeActivity,
+                  day: day,
+                  startTime: currentTime,
+                  endTime: timePoints[j-1],
+                  type: "free"
+                });
+                
+                i = j - 1;
+              }
+            }
+          }
+        }
+      });
+
+      newSchedule.sort((a, b) => {
+        const dayOrder = days.indexOf(a.day) - days.indexOf(b.day);
+        if (dayOrder !== 0) return dayOrder;
+        return a.startTime.localeCompare(b.startTime);
       });
 
       onScheduleGenerated(newSchedule);
