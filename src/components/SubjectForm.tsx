@@ -3,16 +3,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { X, Edit, Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Subject } from "./TimetableGenerator";
 
@@ -21,250 +12,187 @@ interface SubjectFormProps {
   setSubjects: React.Dispatch<React.SetStateAction<Subject[]>>;
 }
 
-const colors = [
-  "#FF6B6B", // Red
-  "#4ECDC4", // Teal
-  "#FFD166", // Yellow
-  "#6A0572", // Purple
-  "#FF8C42", // Orange
-  "#06D6A0", // Green
-  "#118AB2", // Blue
-  "#9D4EDD", // Lavender
-  "#FF5964", // Coral
-  "#17A398", // Turquoise
-];
-
 const SubjectForm: React.FC<SubjectFormProps> = ({ subjects, setSubjects }) => {
-  const [newSubject, setNewSubject] = useState<Subject>({
-    id: "",
-    name: "",
-    color: colors[0],
-    hoursPerWeek: 1,
-  });
-  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#ef5350");
+  const [hoursPerWeek, setHoursPerWeek] = useState(5);
+  const [fixedTime, setFixedTime] = useState(false);
+  const [startTime, setStartTime] = useState("15:00");
+  const [endTime, setEndTime] = useState("16:00");
+  
+  const defaultColors = [
+    "#ef5350", "#ab47bc", "#7e57c2", "#5c6bc0", 
+    "#42a5f5", "#26c6da", "#26a69a", "#66bb6a",
+    "#ffa726", "#ff7043", "#8d6e63", "#78909c"
+  ];
 
-  const handleAddSubject = () => {
-    if (!newSubject.name.trim()) {
-      toast.error("Subject name cannot be empty");
+  const addSubject = () => {
+    if (!name) {
+      toast.error("Subject name is required");
       return;
     }
 
-    if (newSubject.hoursPerWeek <= 0) {
-      toast.error("Hours per week must be greater than 0");
-      return;
-    }
-
-    // Add new subject
-    const subjectToAdd = {
-      ...newSubject,
+    const newSubject: Subject = {
       id: Date.now().toString(),
-      color: newSubject.color || colors[subjects.length % colors.length],
+      name,
+      color,
+      hoursPerWeek,
+      fixedTime,
+      startTime: fixedTime ? startTime : undefined,
+      endTime: fixedTime ? endTime : undefined
     };
 
-    setSubjects([...subjects, subjectToAdd]);
+    setSubjects([...subjects, newSubject]);
+    toast.success(`${name} added to your subjects`);
     
     // Reset form
-    setNewSubject({
-      id: "",
-      name: "",
-      color: colors[(subjects.length + 1) % colors.length],
-      hoursPerWeek: 1,
-    });
-    
-    toast.success(`Subject "${subjectToAdd.name}" added`);
-    setIsDialogOpen(false);
+    setName("");
+    setColor(defaultColors[Math.floor(Math.random() * defaultColors.length)]);
+    setHoursPerWeek(5);
+    setFixedTime(false);
+    setStartTime("15:00");
+    setEndTime("16:00");
   };
 
-  const handleEditSubject = () => {
-    if (!editingSubject) return;
-
-    if (!editingSubject.name.trim()) {
-      toast.error("Subject name cannot be empty");
-      return;
-    }
-
-    if (editingSubject.hoursPerWeek <= 0) {
-      toast.error("Hours per week must be greater than 0");
-      return;
-    }
-
-    setSubjects(subjects.map(s => s.id === editingSubject.id ? editingSubject : s));
-    setEditingSubject(null);
-    toast.success(`Subject "${editingSubject.name}" updated`);
-    setIsDialogOpen(false);
-  };
-
-  const handleRemoveSubject = (id: string) => {
-    const subjectName = subjects.find(s => s.id === id)?.name;
-    setSubjects(subjects.filter(s => s.id !== id));
-    toast.info(`Subject "${subjectName}" removed`);
-  };
-
-  const startEdit = (subject: Subject) => {
-    setEditingSubject({ ...subject });
-    setIsDialogOpen(true);
+  const deleteSubject = (id: string) => {
+    setSubjects(subjects.filter(subject => subject.id !== id));
+    toast.success("Subject deleted");
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold text-gray-800">My Subjects</h2>
-        
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button 
-              className="bg-purple-600 hover:bg-purple-700"
-              onClick={() => {
-                setEditingSubject(null);
-                setNewSubject({
-                  id: "",
-                  name: "",
-                  color: colors[subjects.length % colors.length],
-                  hoursPerWeek: 1,
-                });
-              }}
-            >
-              <Plus size={16} className="mr-1" /> Add Subject
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editingSubject ? "Edit Subject" : "Add New Subject"}
-              </DialogTitle>
-            </DialogHeader>
-            <form 
-              className="space-y-4 py-2" 
-              onSubmit={(e) => {
-                e.preventDefault();
-                editingSubject ? handleEditSubject() : handleAddSubject();
-              }}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="subjectName">Subject Name</Label>
-                <Input
-                  id="subjectName"
-                  placeholder="e.g., Mathematics"
-                  value={editingSubject ? editingSubject.name : newSubject.name}
-                  onChange={(e) => {
-                    if (editingSubject) {
-                      setEditingSubject({ ...editingSubject, name: e.target.value });
-                    } else {
-                      setNewSubject({ ...newSubject, name: e.target.value });
-                    }
-                  }}
-                  autoFocus
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hoursPerWeek">Study Hours Per Week</Label>
-                <Input
-                  id="hoursPerWeek"
-                  type="number"
-                  min="1"
-                  max="40"
-                  value={editingSubject ? editingSubject.hoursPerWeek : newSubject.hoursPerWeek}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 1;
-                    if (editingSubject) {
-                      setEditingSubject({ ...editingSubject, hoursPerWeek: value });
-                    } else {
-                      setNewSubject({ ...newSubject, hoursPerWeek: value });
-                    }
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Color</Label>
-                <div className="flex flex-wrap gap-2">
-                  {colors.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={`w-8 h-8 rounded-full cursor-pointer transition-transform ${
-                        (editingSubject ? editingSubject.color : newSubject.color) === color
-                          ? "ring-2 ring-offset-2 ring-black scale-110"
-                          : ""
-                      }`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => {
-                        if (editingSubject) {
-                          setEditingSubject({ ...editingSubject, color });
-                        } else {
-                          setNewSubject({ ...newSubject, color });
-                        }
-                      }}
-                      aria-label={`Select color ${color}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setIsDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit"
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  {editingSubject ? "Update" : "Add"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {subjects.length === 0 ? (
-        <div className="text-center py-10 bg-gray-50 rounded-lg">
-          <p className="text-gray-500">No subjects added yet. Add your first subject to get started!</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subjects.map((subject) => (
-            <Card key={subject.id} className="overflow-hidden">
-              <div 
-                className="h-2" 
-                style={{ backgroundColor: subject.color }}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="subject-name">Subject Name</Label>
+            <Input 
+              id="subject-name"
+              placeholder="e.g., Mathematics" 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="subject-hours">Hours per Week</Label>
+            <Input 
+              id="subject-hours"
+              type="number" 
+              min="1" 
+              max="20"
+              value={hoursPerWeek}
+              onChange={(e) => setHoursPerWeek(Number(e.target.value))}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="subject-color">Color</Label>
+            <div className="flex space-x-2">
+              <Input 
+                id="subject-color"
+                type="color" 
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="w-16 h-10 p-1"
               />
-              <CardContent className="p-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium text-lg">{subject.name}</h3>
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => startEdit(subject)}
-                    >
-                      <Edit size={16} />
-                      <span className="sr-only">Edit</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRemoveSubject(subject.id)}
-                    >
-                      <X size={16} />
-                      <span className="sr-only">Remove</span>
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {subject.hoursPerWeek} {subject.hoursPerWeek === 1 ? "hour" : "hours"} per week
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+              <div className="flex flex-wrap gap-2">
+                {defaultColors.map(defaultColor => (
+                  <button
+                    key={defaultColor}
+                    type="button"
+                    onClick={() => setColor(defaultColor)}
+                    className="w-6 h-6 rounded-full border"
+                    style={{ backgroundColor: defaultColor }}
+                    aria-label={`Select color ${defaultColor}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="fixed-time"
+              checked={fixedTime}
+              onCheckedChange={setFixedTime}
+            />
+            <Label htmlFor="fixed-time">Fixed Time Schedule</Label>
+          </div>
+          
+          {fixedTime && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start-time">Start Time</Label>
+                <Input 
+                  id="start-time"
+                  type="time" 
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="end-time">End Time</Label>
+                <Input 
+                  id="end-time"
+                  type="time" 
+                  value={endTime}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+          
+          <Button 
+            onClick={addSubject} 
+            className="w-full mt-4 bg-purple-600 hover:bg-purple-700"
+          >
+            Add Subject
+          </Button>
         </div>
-      )}
+        
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="font-medium mb-3">Your Subjects</h3>
+          
+          {subjects.length === 0 ? (
+            <p className="text-gray-500 text-center py-6">No subjects added yet</p>
+          ) : (
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+              {subjects.map(subject => (
+                <div 
+                  key={subject.id} 
+                  className="flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-5 h-5 rounded-full" 
+                      style={{ backgroundColor: subject.color }}
+                    />
+                    <div>
+                      <p className="font-medium">{subject.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {subject.hoursPerWeek} hours/week
+                        {subject.fixedTime && (
+                          <span> • {subject.startTime} - {subject.endTime}</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteSubject(subject.id)}
+                    className="text-gray-500 hover:text-red-600"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

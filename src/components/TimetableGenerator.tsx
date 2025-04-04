@@ -19,6 +19,7 @@ import SubjectForm from "./SubjectForm";
 import Timetable from "./Timetable";
 import PreferencesForm from "./PreferencesForm";
 import ActivityForm from "./ActivityForm";
+import AIScheduleGenerator from "./AIScheduleGenerator";
 
 export type ActivityType = 
   | "study"
@@ -36,6 +37,9 @@ export type Subject = {
   name: string;
   color: string;
   hoursPerWeek: number;
+  fixedTime?: boolean;
+  startTime?: string;
+  endTime?: string;
 };
 
 export type Activity = {
@@ -44,7 +48,7 @@ export type Activity = {
   type: ActivityType;
   color: string;
   hoursPerDay: number;
-  timePeriod: TimePeriod; // Changed from priority to timePeriod
+  timePeriod: TimePeriod;
   fixedTime?: boolean;
   startTime?: string;
   endTime?: string;
@@ -74,7 +78,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "sleep",
     color: "#9575cd",
     hoursPerDay: 8,
-    timePeriod: "evening", // Changed from priority to timePeriod
+    timePeriod: "evening",
     fixedTime: true,
     startTime: "22:00",
     endTime: "06:00"
@@ -85,7 +89,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "freshup",
     color: "#64b5f6",
     hoursPerDay: 1,
-    timePeriod: "morning", // Changed from priority to timePeriod
+    timePeriod: "morning",
     fixedTime: true,
     startTime: "06:00",
     endTime: "07:00"
@@ -96,7 +100,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "exercise",
     color: "#81c784",
     hoursPerDay: 1,
-    timePeriod: "morning", // Changed from priority to timePeriod
+    timePeriod: "morning",
     fixedTime: false,
   },
   {
@@ -105,7 +109,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "school",
     color: "#ffb74d",
     hoursPerDay: 7,
-    timePeriod: "morning", // Changed from priority to timePeriod
+    timePeriod: "morning",
     fixedTime: true,
     startTime: "08:00",
     endTime: "15:00"
@@ -116,7 +120,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "extracurricular",
     color: "#ff8a65",
     hoursPerDay: 2,
-    timePeriod: "afternoon", // Changed from priority to timePeriod
+    timePeriod: "afternoon",
     fixedTime: false,
   },
   {
@@ -125,7 +129,7 @@ const DEFAULT_ACTIVITIES: Activity[] = [
     type: "bedtime",
     color: "#7986cb",
     hoursPerDay: 1,
-    timePeriod: "evening", // Changed from priority to timePeriod
+    timePeriod: "evening",
     fixedTime: true,
     startTime: "21:00",
     endTime: "22:00"
@@ -227,6 +231,23 @@ const TimetableGenerator = () => {
             startTime: activity.startTime!,
             endTime: activity.endTime!,
             type: activity.type
+          });
+        }
+      });
+      
+      // Add fixed-time study subjects
+      const fixedSubjects = subjects.filter(subject => subject.fixedTime && subject.startTime && subject.endTime);
+      
+      fixedSubjects.forEach(subject => {
+        // Check if subject falls within day hours
+        if (subject.startTime! >= dayStartTime && subject.endTime! <= dayEndTime) {
+          newTimetable.push({
+            id: `${day}-subject-${subject.id}`,
+            subject: subject,
+            day: day,
+            startTime: subject.startTime!,
+            endTime: subject.endTime!,
+            type: "study"
           });
         }
       });
@@ -359,8 +380,11 @@ const TimetableGenerator = () => {
         evening: activities.filter(a => !a.fixedTime && a.timePeriod === 'evening')
       };
       
+      // Get non-fixed-time subjects
+      const flexibleSubjects = subjects.filter(s => !s.fixedTime);
+      
       // Calculate study time needs - distribute evenly across periods for now
-      const totalStudyMinutes = subjects.reduce((sum, s) => sum + (s.hoursPerWeek * 60 / 7), 0);
+      const totalStudyMinutes = flexibleSubjects.reduce((sum, s) => sum + (s.hoursPerWeek * 60 / 7), 0);
       const studyPerPeriod = Math.floor(totalStudyMinutes / 3);
       const studyNeeds: Record<TimePeriod, number> = {
         morning: studyPerPeriod,
@@ -440,9 +464,9 @@ const TimetableGenerator = () => {
         
         // Now distribute study subjects across remaining slots in this period
         let subjectIndex = 0;
-        const periodSubjects = [...subjects]; // Copy subjects to rotate through
+        const periodSubjects = [...flexibleSubjects]; // Copy subjects to rotate through
         let subjectMinutes: { [key: string]: number } = {};
-        subjects.forEach(s => subjectMinutes[s.id] = Math.floor(studyNeeds[period] / subjects.length)); 
+        flexibleSubjects.forEach(s => subjectMinutes[s.id] = Math.floor(studyNeeds[period] / flexibleSubjects.length)); 
         
         while (periodSlots.length > 0 && Object.values(subjectMinutes).some(m => m > 0)) {
           // Find slots that are at least 1 hour (60 minutes) long for study sessions
@@ -518,13 +542,13 @@ const TimetableGenerator = () => {
     });
 
     // Sort timetable by day and time
-    newTimetable.sort((a, b) => {
+    const sortedTimetable = [...newTimetable].sort((a, b) => {
       const dayOrder = days.indexOf(a.day) - days.indexOf(b.day);
       if (dayOrder !== 0) return dayOrder;
       return a.startTime.localeCompare(b.startTime);
     });
     
-    setTimetable(newTimetable);
+    setTimetable(sortedTimetable);
     toast.success("Full daily schedule generated!");
     
     // Switch to timetable tab
@@ -544,41 +568,54 @@ const TimetableGenerator = () => {
   return (
     <div className="container mx-auto py-8 px-4">
       <Card className="shadow-lg border-none">
-        <CardHeader className="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-t-lg">
+        <CardHeader className="bg-gradient-to-r from-purple-500 via-purple-600 to-blue-500 text-white rounded-t-lg">
           <CardTitle className="text-2xl md:text-3xl font-bold text-center">
             Daily Schedule Generator
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4 mb-8">
-              <TabsTrigger value="activities">Activities</TabsTrigger>
-              <TabsTrigger value="subjects">Study Subjects</TabsTrigger>
-              <TabsTrigger value="preferences">Time Preferences</TabsTrigger>
-              <TabsTrigger value="timetable">Timetable</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5 mb-8">
+              <TabsTrigger value="activities" className="text-sm md:text-base">Activities</TabsTrigger>
+              <TabsTrigger value="subjects" className="text-sm md:text-base">Study Subjects</TabsTrigger>
+              <TabsTrigger value="preferences" className="text-sm md:text-base">Time Preferences</TabsTrigger>
+              <TabsTrigger value="ai" className="text-sm md:text-base">AI Generator</TabsTrigger>
+              <TabsTrigger value="timetable" className="text-sm md:text-base">Timetable</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="activities">
+            <TabsContent value="activities" className="animate-fade-in">
               <ActivityForm activities={activities} setActivities={setActivities} />
             </TabsContent>
             
-            <TabsContent value="subjects">
+            <TabsContent value="subjects" className="animate-fade-in">
               <SubjectForm subjects={subjects} setSubjects={setSubjects} />
             </TabsContent>
             
-            <TabsContent value="preferences">
+            <TabsContent value="preferences" className="animate-fade-in">
               <PreferencesForm 
                 dayPreferences={dayPreferences} 
                 setDayPreferences={setDayPreferences} 
               />
             </TabsContent>
             
-            <TabsContent value="timetable">
+            <TabsContent value="ai" className="animate-fade-in">
+              <AIScheduleGenerator 
+                subjects={subjects}
+                activities={activities}
+                dayPreferences={dayPreferences}
+                onScheduleGenerated={(newSchedule) => {
+                  setTimetable(newSchedule);
+                  setActiveTab("timetable");
+                }}
+              />
+            </TabsContent>
+            
+            <TabsContent value="timetable" className="animate-fade-in">
               <div className="space-y-6">
                 <div className="flex flex-wrap gap-3 justify-center sm:justify-between">
                   <Button 
                     onClick={generateTimetable}
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-purple-600 hover:bg-purple-700 transform transition-transform hover:scale-105"
                   >
                     Generate Timetable
                   </Button>
@@ -586,12 +623,14 @@ const TimetableGenerator = () => {
                     <Button 
                       onClick={resetTimetable} 
                       variant="outline"
+                      className="transform transition-transform hover:scale-105"
                     >
                       Reset
                     </Button>
                     <Button 
                       onClick={exportTimetable}
                       variant="outline"
+                      className="transform transition-transform hover:scale-105"
                     >
                       Print
                     </Button>
